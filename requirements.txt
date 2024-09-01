@@ -1,0 +1,7 @@
+aiohttp==3.8.1
+numpy==1.21.2
+python-dotenv==0.19.2
+sounddevice==0.4.2
+Twilio==6.60.0
+websocket-client==1.2.3
+
