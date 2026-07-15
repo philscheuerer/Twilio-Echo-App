@@ -1,0 +1,77 @@
+name: Review Mining 1109 Apps
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mine-reviews:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore mining batch
+        run: |
+          mkdir -p review_batch/scripts
+          cat review_batch/script_* | base64 -d | gzip -d > review_batch/scripts/review_mine.mjs
+          cat review_batch/names_*.txt > review_batch/app_names.txt
+          cat > review_batch/package.json <<'JSON'
+          {
+            "name": "app-review-mining-batch",
+            "version": "1.0.0",
+            "private": true,
+            "type": "module",
+            "scripts": {"mine": "node scripts/review_mine.mjs"},
+            "dependencies": {
+              "app-store-scraper": "^0.18.0",
+              "csv-parse": "^5.6.0",
+              "csv-stringify": "^6.5.2",
+              "google-play-scraper": "^10.1.2",
+              "p-limit": "^6.2.0"
+            }
+          }
+          JSON
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('review_batch/scripts/review_mine.mjs')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace(
+              "const INPUT = process.env.INPUT_CSV || 'data/app_opportunity_all.csv';",
+              "const INPUT_NAMES = process.env.INPUT_NAMES || 'app_names.txt';"
+          )
+          old = "const inputText = fs.readFileSync(INPUT, 'utf8');\nconst apps = parse(inputText, { columns: true, skip_empty_lines: true, bom: true });"
+          new = "const apps = fs.readFileSync(INPUT_NAMES, 'utf8')\n  .split(/\\r?\\n/).map((x) => x.trim()).filter(Boolean)\n  .map((app_name, index) => ({ app_name: app_name.replace('CafÃ©', 'Café'), screen_rank: index + 1 }));"
+          if old not in s:
+              raise SystemExit('Input-loading patch target not found')
+          p.write_text(s.replace(old, new), encoding='utf-8')
+          PY
+          printf 'Apps in batch: '; awk 'END {print NR}' review_batch/app_names.txt
+          test "$(awk 'END {print NR}' review_batch/app_names.txt)" -ge 1109
+          node --check review_batch/scripts/review_mine.mjs
+      - name: Install dependencies
+        working-directory: review_batch
+        run: npm install --no-audit --no-fund
+      - name: Mine current Google Play and Apple App Store reviews
+        working-directory: review_batch
+        run: npm run mine
+        env:
+          INPUT_NAMES: app_names.txt
+          REVIEW_LIMIT_GOOGLE: '30'
+          REVIEW_LIMIT_APPLE: '35'
+          CONCURRENCY: '5'
+          MIN_MATCH_SCORE: '0.56'
+      - name: Upload review-mining output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-mining-1109-apps
+          path: review_batch/output/
+          if-no-files-found: warn
+          retention-days: 7
