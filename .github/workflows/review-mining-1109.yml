@@ -3,6 +3,10 @@ name: Review Mining 1109 Apps
 on:
   pull_request:
     branches: [master]
+    paths:
+      - 'review_batch/names_*.txt'
+      - 'review_batch/script_*'
+      - '.github/workflows/review-mining-1109.yml'
   workflow_dispatch:
 
 permissions:
