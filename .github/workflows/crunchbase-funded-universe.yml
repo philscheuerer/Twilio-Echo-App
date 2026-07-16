@@ -1,0 +1,37 @@
+name: Crunchbase Funded Startup Universe
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'funding_batch/**'
+      - '.github/workflows/crunchbase-funded-universe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collect-funded:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install --disable-pip-version-check kagglehub pandas
+      - name: Collect threshold-qualified funded startups
+        working-directory: funding_batch
+        run: python collect_crunchbase.py
+        env:
+          TARGET: '2500'
+      - name: Upload funded startup dataset
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crunchbase-funded-startups
+          path: funding_batch/output/
+          if-no-files-found: warn
+          retention-days: 7
