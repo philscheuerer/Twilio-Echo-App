@@ -1,0 +1,59 @@
+name: Growjo Startup Universe
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'growjo_batch/**'
+      - '.github/workflows/growjo-startup-universe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collect-growjo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Create package manifest
+        working-directory: growjo_batch
+        run: |
+          cat > package.json <<'JSON'
+          {
+            "name": "growjo-startup-universe",
+            "version": "1.0.0",
+            "private": true,
+            "type": "module",
+            "scripts": {"collect": "node collect_growjo.mjs"},
+            "dependencies": {
+              "csv-stringify": "^6.5.2",
+              "playwright": "^1.55.0"
+            }
+          }
+          JSON
+      - name: Install dependencies and browser
+        working-directory: growjo_batch
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Collect 1,000+ threshold-qualified startups
+        working-directory: growjo_batch
+        run: npm run collect
+        env:
+          MAX_PAGES: '28'
+          TARGET: '1350'
+          DETAIL_LIMIT: '350'
+          DETAIL_CONCURRENCY: '5'
+      - name: Upload Growjo dataset
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: growjo-startup-universe
+          path: growjo_batch/output/
+          if-no-files-found: warn
+          retention-days: 7
