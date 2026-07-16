@@ -29,7 +29,7 @@ jobs:
             "version": "1.0.0",
             "private": true,
             "type": "module",
-            "scripts": {"collect": "node collect_growjo.mjs"},
+            "scripts": {"collect": "node collect_growjo_v2.mjs"},
             "dependencies": {
               "csv-stringify": "^6.5.2",
               "playwright": "^1.55.0"
