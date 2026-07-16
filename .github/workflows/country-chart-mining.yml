@@ -1,0 +1,57 @@
+name: Country Store Chart Mining
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'chart_batch/**'
+      - '.github/workflows/country-chart-mining.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mine-charts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Create package manifest
+        working-directory: chart_batch
+        run: |
+          cat > package.json <<'JSON'
+          {
+            "name": "country-chart-mining",
+            "version": "1.0.0",
+            "private": true,
+            "type": "module",
+            "scripts": {"mine": "node chart_mine.mjs"},
+            "dependencies": {
+              "app-store-scraper": "^0.18.0",
+              "csv-stringify": "^6.5.2",
+              "google-play-scraper": "^10.1.2",
+              "p-limit": "^6.2.0"
+            }
+          }
+          JSON
+      - name: Install dependencies
+        working-directory: chart_batch
+        run: npm install --no-audit --no-fund
+      - name: Mine 20 countries, both stores and 10 categories
+        working-directory: chart_batch
+        run: npm run mine
+        env:
+          PER_LIST: '20'
+          CONCURRENCY: '4'
+      - name: Upload chart dataset
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: country-store-charts-20x10
+          path: chart_batch/output/
+          if-no-files-found: warn
+          retention-days: 7
