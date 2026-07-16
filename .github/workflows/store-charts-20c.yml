@@ -1,0 +1,55 @@
+name: Store Charts 20 Countries
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'chart_batch/**'
+      - '.github/workflows/store-charts-20c.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scrape-charts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install chart dependencies
+        working-directory: chart_batch
+        run: |
+          cat > package.json <<'JSON'
+          {
+            "name": "store-charts-20c",
+            "version": "1.0.0",
+            "private": true,
+            "type": "module",
+            "dependencies": {
+              "app-store-scraper": "^0.18.0",
+              "csv-stringify": "^6.5.2",
+              "google-play-scraper": "^10.1.2",
+              "p-limit": "^6.2.0"
+            }
+          }
+          JSON
+          npm install --no-audit --no-fund
+      - name: Scrape current country/category charts
+        working-directory: chart_batch
+        run: node store_charts_20c.mjs
+        env:
+          OUT_DIR: output_charts
+          CHART_SIZE: '50'
+          CONCURRENCY: '4'
+      - name: Upload chart snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-charts-20-countries
+          path: chart_batch/output_charts/
+          if-no-files-found: warn
+          retention-days: 7
