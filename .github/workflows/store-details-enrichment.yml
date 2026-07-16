@@ -1,0 +1,65 @@
+name: Store Detail Enrichment
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'details_batch/**'
+      - '.github/workflows/store-details-enrichment.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  enrich-details:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download completed review-mining artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: review-mining-1109-apps
+          path: details_batch/review_artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: philscheuerer/Twilio-Echo-App
+          run-id: 29453559642
+      - name: Install detail dependencies
+        working-directory: details_batch
+        run: |
+          cat > package.json <<'JSON'
+          {
+            "name": "store-detail-enrichment",
+            "version": "1.0.0",
+            "private": true,
+            "type": "module",
+            "dependencies": {
+              "app-store-scraper": "^0.18.0",
+              "csv-parse": "^5.6.0",
+              "csv-stringify": "^6.5.2",
+              "google-play-scraper": "^10.1.2",
+              "p-limit": "^6.2.0"
+            }
+          }
+          JSON
+          npm install --no-audit --no-fund
+      - name: Fetch current store detail pages
+        working-directory: details_batch
+        run: node store_details.mjs
+        env:
+          INPUT_CSV: review_artifact/review_mining_all_apps.csv
+          OUT_DIR: output_details
+          CONCURRENCY: '5'
+      - name: Upload detail enrichment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-details-1109-apps
+          path: details_batch/output_details/
+          if-no-files-found: warn
+          retention-days: 7
